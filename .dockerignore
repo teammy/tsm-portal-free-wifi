@@ -1,0 +1,18 @@
+# Host-built artifacts (wrong libc for alpine, and stale)
+node_modules
+.next
+tsconfig.tsbuildinfo
+
+# Secrets — passed at runtime with --env-file
+.env*
+env.*.txt
+
+# Not needed in the image
+.git
+.gitignore
+Dockerfile
+.dockerignore
+Jenkinsfile
+README.md
+AGENTS.md
+tech-spec.md
