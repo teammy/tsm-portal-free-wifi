@@ -34,17 +34,21 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
-            steps {
-                echo '📦 Installing dependencies...'
-                sh 'bun install --frozen-lockfile'
-            }
-        }
-
         stage('Lint') {
             steps {
                 echo '🔍 Running lint...'
-                sh 'bun run lint || true'
+                // Bun is not installed on the host — run it from the same image the
+                // Dockerfile uses. --user keeps node_modules owned by jenkins so
+                // cleanWs() can delete it.
+                sh '''
+                    docker run --rm \
+                        --user "$(id -u):$(id -g)" \
+                        -e HOME=/tmp \
+                        -v "$WORKSPACE":/app \
+                        -w /app \
+                        oven/bun:1.4.2-alpine \
+                        sh -c 'bun install --frozen-lockfile && bun run lint' || true
+                '''
             }
         }
 
