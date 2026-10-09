@@ -1,20 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4fbf7;
+  --bg: #e9f4ff;
+  --background: #e9f4ff;
   --foreground: #1f3b2f;
-  color-scheme: light;
+  /* color-scheme: light; */
 }
 
 @theme inline {
-  --color-background: var(--background);
+  --color-background: var(--bg);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-thongterm), system-ui, sans-serif;
   --font-heading: var(--font-sukhumvit), var(--font-thongterm), system-ui, sans-serif;
 }
 
 /* Pastel mint palette */
-@theme {
+/* @theme {
   --color-mint-50: #f1fbf5;
   --color-mint-100: #dff5e8;
   --color-mint-200: #c3ead3;
@@ -27,10 +28,10 @@
   --color-mint-900: #1e4636;
   --color-pistachio: #e4f6c9;
   --color-sky-mint: #d6f3ef;
-}
+} */
 
 body {
-  background: var(--background);
+  background: var(--bg);
   color: var(--foreground);
   font-family: var(--font-sans);
 }

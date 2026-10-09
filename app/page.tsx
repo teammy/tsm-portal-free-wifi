@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Image from "next/image";
 import { Card, Flex } from "antd";
 // Server Component: `Typography.Title` etc. are undefined on a client reference,
 // so import the sub-components directly.
@@ -6,6 +7,7 @@ import Title from "antd/es/typography/Title";
 import Paragraph from "antd/es/typography/Paragraph";
 import Text from "antd/es/typography/Text";
 import { RegisterForm } from "./register-form";
+import logoTsm from "@/public/assets/images/logo-tsm.png";
 
 export default function Home({ searchParams }: PageProps<"/">) {
   return (
@@ -50,8 +52,15 @@ async function RegisterPage({
   return (
     <>
       <Flex vertical align="center" className="mb-8 text-center">
-        <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-white/80 shadow-lg shadow-mint-300/40 ring-1 ring-mint-200">
-          <WifiIcon className="h-11 w-11 text-mint-500" />
+        <div className="mb-5 rounded-3xl bg-white/80 px-5 py-3 shadow-lg shadow-mint-300/40 ring-1 ring-mint-200">
+          <Image
+            src={logoTsm}
+            alt="โรงพยาบาลสมเด็จพระเจ้าตากสินมหาราช จังหวัดตาก"
+            sizes="280px"
+            loading="eager"
+            fetchPriority="high"
+            className="h-auto w-70"
+          />
         </div>
         <Title level={1} className="font-heading! text-3xl! leading-tight! font-medium! text-mint-800! sm:text-4xl!">
           ลงทะเบียนใช้งาน
@@ -88,7 +97,7 @@ function PageSkeleton() {
   return (
     <div className="animate-pulse" aria-hidden>
       <div className="mb-8 flex flex-col items-center gap-4">
-        <div className="h-20 w-20 rounded-3xl bg-white/80" />
+        <div className="h-26 w-80 rounded-3xl bg-white/80" />
         <div className="h-8 w-56 rounded-full bg-mint-200/60" />
         <div className="h-8 w-36 rounded-full bg-mint-200/60" />
         <div className="h-4 w-64 rounded-full bg-mint-100" />
@@ -103,25 +112,5 @@ function PageSkeleton() {
         <div className="h-13 rounded-2xl bg-mint-200/60" />
       </div>
     </div>
-  );
-}
-
-function WifiIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden
-    >
-      <path d="M2 8.82a15 15 0 0 1 20 0" />
-      <path d="M5 12.86a10 10 0 0 1 14 0" />
-      <path d="M8.5 16.43a5 5 0 0 1 7 0" />
-      <path d="M12 20h.01" />
-    </svg>
   );
 }
