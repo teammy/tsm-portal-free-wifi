@@ -6,6 +6,7 @@ tsconfig.tsbuildinfo
 # Secrets — passed at runtime with --env-file
 .env*
 env.*.txt
+env.*.text
 
 # Not needed in the image
 .git

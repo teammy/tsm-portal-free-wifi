@@ -2,7 +2,7 @@
 #
 # Build:  docker build -t tsm-portal-free-wifi .
 # Run:    docker run -d --name tsm-portal-free-wifi --restart unless-stopped \
-#           --env-file env.production.txt -p 3000:3000 tsm-portal-free-wifi
+#           --env-file env.production.text -p 3000:3000 tsm-portal-free-wifi
 #
 # Secrets (DB_*, DOC_ENC_KEY, DOC_HMAC_KEY, ...) are passed at runtime with
 # --env-file and never baked into the image. The build does not need them.
@@ -46,9 +46,9 @@ ENV TZ=Asia/Bangkok
 RUN apk add --no-cache tini tzdata
 
 # Standalone output already bundles the node_modules it needs
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=bun:bun /app/.next/standalone ./
+COPY --from=builder --chown=bun:bun /app/.next/static ./.next/static
+COPY --from=builder --chown=bun:bun /app/public ./public
 
 USER bun
 EXPOSE 3000

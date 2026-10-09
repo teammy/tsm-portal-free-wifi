@@ -14,6 +14,10 @@ pipeline {
         CONTAINER_NAME = 'free-wifi-portal'
         HOST_PORT      = '4520'
 
+        // Runtime secrets for `docker run --env-file`. Lives on the host, outside
+        // the workspace: env.*.txt is gitignored and cleanWs() wipes the workspace.
+        ENV_FILE       = '/etc/free-wifi-portal/env.production.text'
+
         // How many build-number tags to keep for rollback
         KEEP_IMAGES    = '3'
     }
@@ -47,7 +51,7 @@ pipeline {
                         -v "$WORKSPACE":/app \
                         -w /app \
                         oven/bun:1.4.2-alpine \
-                        sh -c 'bun install --frozen-lockfile && bun run lint' || true
+                        sh -c 'bun install --frozen-lockfile && bun run lint'
                 '''
             }
         }
@@ -55,18 +59,14 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 echo '🐳 Building Docker image...'
-                script {
-                    def envFile = (env.BRANCH == 'uat') ? 'env.uat.text' : 'env.production.text'
-
-                    sh """
-                        docker build \
-                            --build-arg ENV_FILE=${envFile} \
-                            --build-arg APP_VERSION=${env.BUILD_NUMBER} \
-                            -t "$IMAGE_NAME:$BUILD_NUMBER" \
-                            -t "$IMAGE_NAME:latest" \
-                            .
-                    """
-                }
+                // :BUILD_NUMBER is what Deploy runs and rolls back to; :latest is a
+                // convenience alias for the newest build
+                sh '''
+                    docker build \
+                        -t "$IMAGE_NAME:$BUILD_NUMBER" \
+                        -t "$IMAGE_NAME:latest" \
+                        .
+                '''
             }
         }
 
