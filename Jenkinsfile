@@ -1,6 +1,6 @@
 pipeline {
-    // Jenkins runs on the deploy host (10.10.12.61): images are built and kept
-    // locally, no registry, no SSH.
+    // Jenkins runs on the deploy host (tsm-server-authen): images are built and
+    // kept locally, no registry, no SSH.
     agent any
 
     options {
@@ -12,6 +12,8 @@ pipeline {
     environment {
         IMAGE_NAME     = 'free-wifi-portal'
         CONTAINER_NAME = 'free-wifi-portal'
+        // Loopback only: Caddy proxies wifi.tsm.go.th to it, and Docker-published
+        // ports bypass UFW
         HOST_PORT      = '4520'
 
         // Runtime secrets for `docker run --env-file`. Lives on the host, outside
@@ -90,7 +92,7 @@ pipeline {
                             --restart unless-stopped \
                             --env-file "$ENV_FILE" \
                             --add-host host.docker.internal:host-gateway \
-                            -p "$HOST_PORT:3000" \
+                            -p "127.0.0.1:$HOST_PORT:3000" \
                             "$1"
                     }
 
