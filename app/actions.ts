@@ -1,6 +1,7 @@
 'use server'
 import isValidThaiID from 'thai-id-validator'
 import { encryptDocNumber, last4, normalizeDocNumber } from '@/lib/crypto'
+import { gatewayLoginUrl } from '@/lib/gateway'
 import { createSession } from '@/lib/session'
 
 const CONSENT_VERSION = 'v1'
@@ -14,6 +15,8 @@ export type RegisterState = {
   message?: string
   errors?: Partial<Record<Field, string>>
   expiresAt?: string
+  /** EG ext_login URL carrying this device's session credentials */
+  loginUrl?: string
 }
 
 /** Canonical form stored in registrations: AA-BB-CC-DD-EE-FF */
@@ -103,9 +106,14 @@ export async function register(input: RegisterInput): Promise<RegisterState> {
       consentVersion: CONSENT_VERSION,
     })
 
-    // TODO: log in to the gateway with session.username/password on the user's
-    // behalf. Credentials must never be returned to the client.
-    return { ok: true, expiresAt: session.expiresAt.toISOString() }
+    // The browser has to log in at the EG itself (see lib/gateway). Handing it
+    // the credentials is fine: they're random per registration, only accepted
+    // from this MAC, one device at a time, and expire with the session.
+    return {
+      ok: true,
+      expiresAt: session.expiresAt.toISOString(),
+      loginUrl: gatewayLoginUrl(session.username, session.password),
+    }
   } catch (err) {
     console.error('register failed', err)
     return { ok: false, message: 'ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง' }

@@ -68,6 +68,6 @@ export async function createSession(input: {
     ]).execute()
   })
 
-  // คืน credential เพื่อนำไปล็อกอินที่ EG แทนผู้ใช้ (ห้ามแสดงให้ผู้ใช้เห็น)
+  // คืน credential ให้ browser ของเครื่องนั้นนำไปล็อกอินที่ EG (lib/gateway) — ไม่แสดงบนหน้าจอ
   return { username, password, expiresAt }
 }

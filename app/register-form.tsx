@@ -77,6 +77,8 @@ export function RegisterForm({ mac, ip }: { mac: string; ip: string }) {
       const res = await register({ ...values, mac, ip })
       if (res.ok) {
         setExpiresAt(res.expiresAt)
+        // EG checks the credentials against RADIUS, then redirects to its Post URL
+        if (res.loginUrl) window.location.assign(res.loginUrl)
         return
       }
       setMessage(res.message)
