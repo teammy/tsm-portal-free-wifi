@@ -11,6 +11,19 @@ function toRadiusExpiration(d: Date): string {
   return `${p(d.getDate())} ${m[d.getMonth()]} ${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
+/**
+ * AA-BB-CC-DD-EE-FF → regex for the `=~` check item, so the MAC matches
+ * whatever Calling-Station-Id format the EG sends (AA-BB-.., aa:bb:..,
+ * aabb.ccdd.eeff, aabbccddeeff). Spelled out as [aA] instead of (?i) because
+ * FreeRADIUS may be built with POSIX regex rather than PCRE.
+ */
+function callingStationIdPattern(mac: string): string {
+  const octets = mac.split('-').map((o) =>
+    o.replace(/[A-F]/g, (c) => `[${c.toLowerCase()}${c}]`),
+  )
+  return `^${octets.join('[-:.]?')}$`
+}
+
 export async function createSession(input: {
   authMethod: 'thaid' | 'form'
   fullName: string
@@ -18,7 +31,7 @@ export async function createSession(input: {
   docNumberEnc: Buffer          // เข้ารหัสมาแล้วจาก lib/crypto
   docLast4: string | null
   phone: string | null
-  mac: string                   // แปลงเป็นรูปแบบเดียวกับที่ EG ส่งใน RADIUS แล้ว
+  mac: string                   // AA-BB-CC-DD-EE-FF (normalizeMac ใน app/actions)
   ip: string | null
   consentVersion: string
 }) {
@@ -45,7 +58,7 @@ export async function createSession(input: {
     await trx.insertInto('radcheck').values([
       { username, attribute: 'Cleartext-Password', op: ':=', value: password },
       { username, attribute: 'Expiration',         op: ':=', value: toRadiusExpiration(expiresAt) },
-      { username, attribute: 'Calling-Station-Id', op: '==', value: input.mac },
+      { username, attribute: 'Calling-Station-Id', op: '=~', value: callingStationIdPattern(input.mac) },
       { username, attribute: 'Simultaneous-Use',   op: ':=', value: '1' },
     ]).execute()
 

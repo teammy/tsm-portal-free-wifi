@@ -45,9 +45,10 @@ async function RegisterPage({
   searchParams,
 }: Pick<PageProps<"/">, "searchParams">) {
   const params = await searchParams;
-  // Client MAC/IP passed by the gateway's captive-portal redirect
-  const mac = firstParam(params.mac);
-  const ip = firstParam(params.ip);
+  // Client MAC/IP passed by the gateway's captive-portal redirect. The EG sends
+  // `client_mac` (aa:bb:cc:dd:ee:ff) and no client IP; `mac`/`ip` are fallbacks.
+  const mac = firstParam(params.client_mac) || firstParam(params.mac);
+  const ip = firstParam(params.client_ip) || firstParam(params.ip);
 
   return (
     <>

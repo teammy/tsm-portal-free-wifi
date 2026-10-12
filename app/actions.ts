@@ -16,7 +16,7 @@ export type RegisterState = {
   expiresAt?: string
 }
 
-/** RADIUS Calling-Station-Id format: AA-BB-CC-DD-EE-FF */
+/** Canonical form stored in registrations: AA-BB-CC-DD-EE-FF */
 function normalizeMac(raw: string): string | null {
   const hex = raw.replace(/[^0-9a-f]/gi, '').toUpperCase()
   if (hex.length !== 12) return null
