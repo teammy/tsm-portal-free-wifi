@@ -3,17 +3,21 @@
  * portal started storing it. Decrypts doc_number_enc, HMACs the plaintext the
  * same way lib/crypto does, and only touches rows where the HMAC is NULL.
  *
- * Run it inside the portal container so it gets the production env and DB
- * route (the image has no scripts/, so feed it on stdin):
+ * Run it on the deploy host in a throwaway bun container with the portal's
+ * env file and DB route (the portal image can't: Turbopack bundles mysql2 into
+ * the server chunks, so there is no node_modules/mysql2 to import):
  *
- *   docker exec -i -w /app free-wifi-portal bun run - < scripts/backfill-doc-hmac.ts
+ *   docker run --rm -i -w /tmp \
+ *     --env-file /etc/free-wifi-portal/env.production.text \
+ *     --add-host host.docker.internal:host-gateway \
+ *     oven/bun:1.4.2-alpine \
+ *     sh -c 'bun add mysql2@3 </dev/null >/dev/null && bun run -' < backfill-doc-hmac.ts
  *
- * REHASH=1 (docker exec -e REHASH=1 ...) recomputes every row instead — use it
+ * REHASH=1 (docker run -e REHASH=1 ...) recomputes every row instead — use it
  * if rows were hashed with the wrong DOC_HMAC_KEY.
  *
  * Standalone on purpose: lib/crypto imports 'server-only', which only resolves
- * inside Next. Keep the format below in sync with encryptDocNumber. Imports
- * plain 'mysql2' (as lib/db does) so it resolves in the standalone image.
+ * inside Next. Keep the format below in sync with encryptDocNumber.
  */
 import { createDecipheriv, createHmac } from 'node:crypto'
 import mysql, { type RowDataPacket } from 'mysql2'
