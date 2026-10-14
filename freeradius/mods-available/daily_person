@@ -1,0 +1,47 @@
+# -*- text -*-
+#
+#  Per-person daily connected-time cap for the free-wifi portal (FreeRADIUS 3.2).
+#
+#  Every registration gets a new random username, so the stock dailycounter
+#  (which sums radacct per username) can't see that two usernames are the same
+#  person. This query sums today's radacct of every username whose registration
+#  shares the doc_number_hmac OR the MAC of the user being authorized.
+#
+#  Time counted is wall-clock connected time (start → stop, or → last
+#  Interim-Update while the session is open), not Acct-Session-Time: the EG
+#  reports far less than the real connected time.
+#
+#  The limit comes from radgroupcheck on group 'freewifi' (the portal puts
+#  every username in it):
+#    Max-Daily-Person-Session := 14400
+#  Users without that check item (not in the group) are skipped.
+#
+#  Install:
+#    /etc/freeradius/3.0/mods-available/daily_person  (this file)
+#    ln -s ../mods-available/daily_person /etc/freeradius/3.0/mods-enabled/
+#    add `daily_person` to authorize {} in sites-enabled/default, after -sql
+#
+#  %%b = start of the current reset period (today 00:00, server local time) as
+#  a unix timestamp. Registrations created before yesterday 00:00 have expired
+#  (Expiration = next midnight), so the created_at bound only trims the scan.
+#
+sqlcounter daily_person {
+	sql_module_instance = sql
+	key = User-Name
+	counter_name = Daily-Person-Session-Time
+	check_name = Max-Daily-Person-Session
+	reply_name = Session-Timeout
+	reset = daily
+
+	query = "\
+		SELECT COALESCE(SUM(GREATEST(0, \
+			UNIX_TIMESTAMP(COALESCE(a.acctstoptime, a.acctupdatetime, a.acctstarttime)) \
+			- GREATEST(UNIX_TIMESTAMP(a.acctstarttime), %%b))), 0) \
+		FROM registrations me \
+		JOIN registrations r \
+			ON r.created_at >= FROM_UNIXTIME(%%b - 86400) \
+			AND (r.doc_number_hmac = me.doc_number_hmac OR r.mac = me.mac) \
+		JOIN radacct a ON a.username = r.session_username \
+		WHERE me.session_username = '%{${key}}' \
+		AND COALESCE(a.acctstoptime, a.acctupdatetime, a.acctstarttime) > FROM_UNIXTIME(%%b)"
+}
