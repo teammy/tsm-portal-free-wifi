@@ -1,11 +1,14 @@
 import { Suspense } from "react";
 import Image from "next/image";
+import { connection } from "next/server";
 import { Card, Flex } from "antd";
 // Server Component: `Typography.Title` etc. are undefined on a client reference,
 // so import the sub-components directly.
 import Title from "antd/es/typography/Title";
 import Paragraph from "antd/es/typography/Paragraph";
 import Text from "antd/es/typography/Text";
+import { deviceStatus, type DeviceStatus } from "@/lib/quota";
+import { QuotaExhausted, WelcomeBack } from "./device-status";
 import { RegisterForm } from "./register-form";
 import logoTsm from "@/public/assets/images/logo-tsm.png";
 
@@ -50,6 +53,17 @@ async function RegisterPage({
   const mac = firstParam(params.client_mac) || firstParam(params.mac);
   const ip = firstParam(params.client_ip) || firstParam(params.ip);
 
+  // Back on the same device today → offer to reconnect, or say the day's time
+  // is used up. If the lookup fails, the form still works. `await connection()`
+  // keeps the lookup (and its `new Date()`) out of runtime prefetch prerenders.
+  let status: DeviceStatus = { kind: "new" };
+  if (mac) await connection(); // outside the try: Next's prerender bail-out must not be caught
+  try {
+    if (mac) status = await deviceStatus(mac);
+  } catch (err) {
+    console.error("device status failed", err);
+  }
+
   return (
     <>
       <Flex vertical align="center" className="mb-8 text-center">
@@ -79,7 +93,13 @@ async function RegisterPage({
         variant="borderless"
         className="bg-white/75! shadow-xl! shadow-mint-300/30 ring-1! ring-white backdrop-blur-md"
       >
-        <RegisterForm mac={mac} ip={ip} />
+        {status.kind === "active" ? (
+          <WelcomeBack remainingSeconds={status.remainingSeconds} loginUrl={status.loginUrl} />
+        ) : status.kind === "exhausted" ? (
+          <QuotaExhausted limitSeconds={status.limitSeconds} />
+        ) : (
+          <RegisterForm mac={mac} ip={ip} />
+        )}
       </Card>
 
       <Flex justify="center" align="start" gap={8} className="mt-6 px-2 text-center">

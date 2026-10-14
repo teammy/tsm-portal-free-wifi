@@ -1,21 +1,9 @@
 import 'server-only'
 import { randomBytes } from 'node:crypto'
 import { db } from './db'
+import { nextBangkokMidnight, RADIUS_GROUP } from './quota'
 
-// Per-person daily cap (connected time) is enforced by FreeRADIUS sqlcounter via
-// radgroupcheck Max-Daily-Session on this group; Session-Timeout below is only
-// the ceiling for a single session.
-const RADIUS_GROUP = 'freewifi'
-const DAILY_LIMIT_SECONDS = 4 * 3600
 const IDLE_SECONDS = 1800
-const BKK_OFFSET_MS = 7 * 3600_000   // Asia/Bangkok, no DST
-
-/** Next 00:00 Asia/Bangkok — the daily quota resets then, so each username lives one day */
-function nextBangkokMidnight(now = new Date()): Date {
-  const bkk = new Date(now.getTime() + BKK_OFFSET_MS)
-  bkk.setUTCHours(24, 0, 0, 0)
-  return new Date(bkk.getTime() - BKK_OFFSET_MS)
-}
 
 function toRadiusExpiration(d: Date): string {
   const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -47,6 +35,10 @@ export async function createSession(input: {
   mac: string                   // AA-BB-CC-DD-EE-FF (normalizeMac ใน app/actions)
   ip: string | null
   consentVersion: string
+  // Ceiling for one session. The per-person daily cap across sessions is
+  // enforced by the daily_person sqlcounter (Max-Daily-Person-Session on
+  // RADIUS_GROUP), which only ever lowers Session-Timeout.
+  sessionTimeoutSeconds: number
 }) {
   const username = `s-${randomBytes(4).toString('hex')}`
   const password = randomBytes(18).toString('base64url')
@@ -77,7 +69,7 @@ export async function createSession(input: {
     ]).execute()
 
     await trx.insertInto('radreply').values([
-      { username, attribute: 'Session-Timeout', op: ':=', value: String(DAILY_LIMIT_SECONDS) },
+      { username, attribute: 'Session-Timeout', op: ':=', value: String(input.sessionTimeoutSeconds) },
       { username, attribute: 'Idle-Timeout',    op: ':=', value: String(IDLE_SECONDS) },
     ]).execute()
 

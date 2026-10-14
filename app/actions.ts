@@ -2,6 +2,8 @@
 import isValidThaiID from 'thai-id-validator'
 import { encryptDocNumber, hashDocNumber, last4, normalizeDocNumber } from '@/lib/crypto'
 import { gatewayLoginUrl } from '@/lib/gateway'
+import { normalizeMac } from '@/lib/mac'
+import { findTodaySession, nextBangkokMidnight, quotaToday } from '@/lib/quota'
 import { createSession } from '@/lib/session'
 
 const CONSENT_VERSION = 'v1'
@@ -17,13 +19,10 @@ export type RegisterState = {
   expiresAt?: string
   /** EG ext_login URL carrying this device's session credentials */
   loginUrl?: string
-}
-
-/** Canonical form stored in registrations: AA-BB-CC-DD-EE-FF */
-function normalizeMac(raw: string): string | null {
-  const hex = raw.replace(/[^0-9a-f]/gi, '').toUpperCase()
-  if (hex.length !== 12) return null
-  return hex.match(/.{2}/g)!.join('-')
+  /** Time left today for this person, as of registering */
+  remainingSeconds?: number
+  /** Set when the person has used up today's limit; the form shows that instead */
+  exhaustedLimitSeconds?: number
 }
 
 function validateDocNumber(type: DocType, doc: string): string | undefined {
@@ -94,25 +93,40 @@ export async function register(input: RegisterInput): Promise<RegisterState> {
   }
 
   try {
-    const session = await createSession({
-      authMethod: 'form',
-      fullName,
-      docType: docType!,
-      docNumberEnc: encryptDocNumber(docNumber),
-      docNumberHmac: hashDocNumber(docNumber),
-      docLast4: last4(docNumber),
-      phone: phoneRaw || null,
-      mac,
-      ip,
-      consentVersion: CONSENT_VERSION,
-    })
+    const docNumberHmac = hashDocNumber(docNumber)
+
+    // RADIUS would reject this person anyway; say why instead of letting the EG
+    // show its generic error
+    const quota = await quotaToday({ mac, hmac: docNumberHmac })
+    if (quota.remainingSeconds <= 0) {
+      return { ok: false, exhaustedLimitSeconds: quota.limitSeconds }
+    }
+
+    // Same person on the same device again today: log in with the username
+    // they already have instead of piling up registrations
+    const session =
+      (await findTodaySession(mac, docNumberHmac)) ??
+      (await createSession({
+        authMethod: 'form',
+        fullName,
+        docType: docType!,
+        docNumberEnc: encryptDocNumber(docNumber),
+        docNumberHmac,
+        docLast4: last4(docNumber),
+        phone: phoneRaw || null,
+        mac,
+        ip,
+        consentVersion: CONSENT_VERSION,
+        sessionTimeoutSeconds: quota.limitSeconds,
+      }))
 
     // The browser has to log in at the EG itself (see lib/gateway). Handing it
     // the credentials is fine: they're random per registration, only accepted
     // from this MAC, one device at a time, and expire with the session.
     return {
       ok: true,
-      expiresAt: session.expiresAt.toISOString(),
+      expiresAt: nextBangkokMidnight().toISOString(),
+      remainingSeconds: quota.remainingSeconds,
       loginUrl: gatewayLoginUrl(session.username, session.password),
     }
   } catch (err) {

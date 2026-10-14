@@ -3,7 +3,9 @@
 import { useState, useTransition } from 'react'
 import { Alert, Button, Checkbox, Form, Input, Modal, Result, Select, Typography } from 'antd'
 import isValidThaiID from 'thai-id-validator'
+import { formatDuration } from '@/lib/format'
 import { register, type RegisterInput } from './actions'
+import { QuotaExhausted } from './device-status'
 
 type DocType = 'thai_id' | 'passport' | 'pink_card' | 'other'
 
@@ -64,11 +66,15 @@ export function RegisterForm({ mac, ip }: { mac: string; ip: string }) {
 
   const [isPending, startTransition] = useTransition()
   const [message, setMessage] = useState<string>()
-  const [expiresAt, setExpiresAt] = useState<string>()
+  const [success, setSuccess] = useState<{ expiresAt: string; remainingSeconds: number }>()
+  const [exhaustedLimit, setExhaustedLimit] = useState<number>()
   const [termsOpen, setTermsOpen] = useState(false)
 
-  if (expiresAt) {
-    return <SuccessView expiresAt={expiresAt} />
+  if (success) {
+    return <SuccessView {...success} />
+  }
+  if (exhaustedLimit) {
+    return <QuotaExhausted limitSeconds={exhaustedLimit} />
   }
 
   const onFinish = (values: FormValues) => {
@@ -76,9 +82,13 @@ export function RegisterForm({ mac, ip }: { mac: string; ip: string }) {
     startTransition(async () => {
       const res = await register({ ...values, mac, ip })
       if (res.ok) {
-        setExpiresAt(res.expiresAt)
+        setSuccess({ expiresAt: res.expiresAt!, remainingSeconds: res.remainingSeconds! })
         // EG checks the credentials against RADIUS, then redirects to its Post URL
         if (res.loginUrl) window.location.assign(res.loginUrl)
+        return
+      }
+      if (res.exhaustedLimitSeconds) {
+        setExhaustedLimit(res.exhaustedLimitSeconds)
         return
       }
       setMessage(res.message)
@@ -249,7 +259,7 @@ export function RegisterForm({ mac, ip }: { mac: string; ip: string }) {
   )
 }
 
-function SuccessView({ expiresAt }: { expiresAt: string }) {
+function SuccessView({ expiresAt, remainingSeconds }: { expiresAt: string; remainingSeconds: number }) {
   const until = new Date(expiresAt).toLocaleString('th-TH', {
     dateStyle: 'medium',
     timeStyle: 'short',
@@ -263,7 +273,7 @@ function SuccessView({ expiresAt }: { expiresAt: string }) {
         <>
           อุปกรณ์ของท่านพร้อมใช้งานอินเทอร์เน็ตแล้ว
           <br />
-          ใช้งานได้รวม 4 ชั่วโมงต่อวัน ภายใน {until}
+          เหลือเวลาใช้งานวันนี้ {formatDuration(remainingSeconds)} (ภายใน {until})
         </>
       }
       className="px-0! py-4!"
