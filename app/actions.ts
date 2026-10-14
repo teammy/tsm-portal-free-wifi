@@ -1,6 +1,6 @@
 'use server'
 import isValidThaiID from 'thai-id-validator'
-import { encryptDocNumber, last4, normalizeDocNumber } from '@/lib/crypto'
+import { encryptDocNumber, hashDocNumber, last4, normalizeDocNumber } from '@/lib/crypto'
 import { gatewayLoginUrl } from '@/lib/gateway'
 import { createSession } from '@/lib/session'
 
@@ -99,6 +99,7 @@ export async function register(input: RegisterInput): Promise<RegisterState> {
       fullName,
       docType: docType!,
       docNumberEnc: encryptDocNumber(docNumber),
+      docNumberHmac: hashDocNumber(docNumber),
       docLast4: last4(docNumber),
       phone: phoneRaw || null,
       mac,

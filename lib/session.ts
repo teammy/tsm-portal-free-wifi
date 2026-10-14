@@ -2,8 +2,20 @@ import 'server-only'
 import { randomBytes } from 'node:crypto'
 import { db } from './db'
 
-const SESSION_HOURS = 8
+// Per-person daily cap (connected time) is enforced by FreeRADIUS sqlcounter via
+// radgroupcheck Max-Daily-Session on this group; Session-Timeout below is only
+// the ceiling for a single session.
+const RADIUS_GROUP = 'freewifi'
+const DAILY_LIMIT_SECONDS = 4 * 3600
 const IDLE_SECONDS = 1800
+const BKK_OFFSET_MS = 7 * 3600_000   // Asia/Bangkok, no DST
+
+/** Next 00:00 Asia/Bangkok — the daily quota resets then, so each username lives one day */
+function nextBangkokMidnight(now = new Date()): Date {
+  const bkk = new Date(now.getTime() + BKK_OFFSET_MS)
+  bkk.setUTCHours(24, 0, 0, 0)
+  return new Date(bkk.getTime() - BKK_OFFSET_MS)
+}
 
 function toRadiusExpiration(d: Date): string {
   const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -29,6 +41,7 @@ export async function createSession(input: {
   fullName: string
   docType: 'thai_id' | 'passport' | 'pink_card' | 'other'
   docNumberEnc: Buffer          // เข้ารหัสมาแล้วจาก lib/crypto
+  docNumberHmac: Buffer         // hashDocNumber — ใช้จับคนเดียวกันข้าม username
   docLast4: string | null
   phone: string | null
   mac: string                   // AA-BB-CC-DD-EE-FF (normalizeMac ใน app/actions)
@@ -37,7 +50,7 @@ export async function createSession(input: {
 }) {
   const username = `s-${randomBytes(4).toString('hex')}`
   const password = randomBytes(18).toString('base64url')
-  const expiresAt = new Date(Date.now() + SESSION_HOURS * 3600_000)
+  const expiresAt = nextBangkokMidnight()
 
   await db.transaction().execute(async (trx) => {
     await trx.insertInto('registrations').values({
@@ -46,6 +59,7 @@ export async function createSession(input: {
       full_name: input.fullName,
       doc_type: input.docType,
       doc_number_enc: input.docNumberEnc,
+      doc_number_hmac: input.docNumberHmac,
       doc_last4: input.docLast4,
       phone: input.phone,
       mac: input.mac,
@@ -63,9 +77,13 @@ export async function createSession(input: {
     ]).execute()
 
     await trx.insertInto('radreply').values([
-      { username, attribute: 'Session-Timeout', op: ':=', value: String(SESSION_HOURS * 3600) },
+      { username, attribute: 'Session-Timeout', op: ':=', value: String(DAILY_LIMIT_SECONDS) },
       { username, attribute: 'Idle-Timeout',    op: ':=', value: String(IDLE_SECONDS) },
     ]).execute()
+
+    await trx.insertInto('radusergroup').values({
+      username, groupname: RADIUS_GROUP, priority: 1,
+    }).execute()
   })
 
   // คืน credential ให้ browser ของเครื่องนั้นนำไปล็อกอินที่ EG (lib/gateway) — ไม่แสดงบนหน้าจอ

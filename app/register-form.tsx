@@ -263,7 +263,7 @@ function SuccessView({ expiresAt }: { expiresAt: string }) {
         <>
           อุปกรณ์ของท่านพร้อมใช้งานอินเทอร์เน็ตแล้ว
           <br />
-          ใช้งานได้ถึง {until}
+          ใช้งานได้รวม 4 ชั่วโมงต่อวัน ภายใน {until}
         </>
       }
       className="px-0! py-4!"
