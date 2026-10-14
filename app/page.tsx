@@ -7,7 +7,8 @@ import { Card, Flex } from "antd";
 import Title from "antd/es/typography/Title";
 import Paragraph from "antd/es/typography/Paragraph";
 import Text from "antd/es/typography/Text";
-import { deviceStatus, type DeviceStatus } from "@/lib/quota";
+import { dailyLimitSeconds, deviceStatus, type DeviceStatus } from "@/lib/quota";
+import { thaidEnabled } from "@/lib/thaid";
 import { QuotaExhausted, WelcomeBack } from "./device-status";
 import { RegisterForm } from "./register-form";
 import logoTsm from "@/public/assets/images/logo-tsm.png";
@@ -58,8 +59,13 @@ async function RegisterPage({
   // keeps the lookup (and its `new Date()`) out of runtime prefetch prerenders.
   let status: DeviceStatus = { kind: "new" };
   if (mac) await connection(); // outside the try: Next's prerender bail-out must not be caught
+  // Set by /thaid/callback when ThaID login fails or the person is over quota
+  const thaidError = firstParam(params.thaid_error);
   try {
     if (mac) status = await deviceStatus(mac);
+    if (status.kind === "new" && thaidError === "quota") {
+      status = { kind: "exhausted", limitSeconds: await dailyLimitSeconds() };
+    }
   } catch (err) {
     console.error("device status failed", err);
   }
@@ -98,7 +104,12 @@ async function RegisterPage({
         ) : status.kind === "exhausted" ? (
           <QuotaExhausted limitSeconds={status.limitSeconds} />
         ) : (
-          <RegisterForm mac={mac} ip={ip} />
+          <RegisterForm
+            mac={mac}
+            ip={ip}
+            thaidEnabled={thaidEnabled()}
+            thaidFailed={thaidError === "failed"}
+          />
         )}
       </Card>
 

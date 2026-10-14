@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Alert, Button, Checkbox, Form, Input, Modal, Result, Select, Typography } from 'antd'
+import { Alert, Button, Checkbox, Divider, Form, Input, Modal, Result, Select, Typography } from 'antd'
 import isValidThaiID from 'thai-id-validator'
 import { formatDuration } from '@/lib/format'
 import { register, type RegisterInput } from './actions'
@@ -59,13 +59,25 @@ function formatThirteenDigits(raw: string): string {
     .join('-')
 }
 
-export function RegisterForm({ mac, ip }: { mac: string; ip: string }) {
+export function RegisterForm({
+  mac,
+  ip,
+  thaidEnabled,
+  thaidFailed,
+}: {
+  mac: string
+  ip: string
+  thaidEnabled: boolean
+  thaidFailed: boolean
+}) {
   const [form] = Form.useForm<FormValues>()
   const docType = Form.useWatch('docType', form)
   const doc = docOption(docType)
 
   const [isPending, startTransition] = useTransition()
-  const [message, setMessage] = useState<string>()
+  const [message, setMessage] = useState<string | undefined>(
+    thaidFailed ? 'ยืนยันตัวตนด้วย ThaID ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง หรือกรอกแบบฟอร์ม' : undefined,
+  )
   const [success, setSuccess] = useState<{ expiresAt: string; remainingSeconds: number }>()
   const [exhaustedLimit, setExhaustedLimit] = useState<number>()
   const [termsOpen, setTermsOpen] = useState(false)
@@ -75,6 +87,20 @@ export function RegisterForm({ mac, ip }: { mac: string; ip: string }) {
   }
   if (exhaustedLimit) {
     return <QuotaExhausted limitSeconds={exhaustedLimit} />
+  }
+
+  // ThaID fills in name and ID itself; only the consent box has to be ticked
+  const startThaid = async () => {
+    try {
+      await form.validateFields(['consent'])
+    } catch {
+      return
+    }
+    // A full navigation, not router.push: /thaid/start is a route handler that
+    // redirects off-site to DOPA
+    const url = new URL('/thaid/start', window.location.origin)
+    url.search = new URLSearchParams({ mac, ip, consent: '1' }).toString()
+    window.location.assign(url)
   }
 
   const onFinish = (values: FormValues) => {
@@ -228,6 +254,20 @@ export function RegisterForm({ mac, ip }: { mac: string; ip: string }) {
             {isPending ? 'กำลังลงทะเบียน…' : 'เชื่อมต่อ WiFi'}
           </Button>
         </Form.Item>
+
+        {thaidEnabled && (
+          <>
+            <Divider plain className="my-5! text-sm!">
+              หรือ
+            </Divider>
+            <Button block onClick={startThaid} className="h-13! font-heading! text-lg!">
+              ลงทะเบียนด้วย ThaID
+            </Button>
+            <Typography.Paragraph type="secondary" className="mt-2! mb-0! text-center text-xs!">
+              ไม่ต้องกรอกชื่อและเลขบัตร — ติ๊กยอมรับเงื่อนไขด้านบนก่อน
+            </Typography.Paragraph>
+          </>
+        )}
       </Form>
 
       <Modal

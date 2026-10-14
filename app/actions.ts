@@ -1,12 +1,9 @@
 'use server'
 import isValidThaiID from 'thai-id-validator'
-import { encryptDocNumber, hashDocNumber, last4, normalizeDocNumber } from '@/lib/crypto'
-import { gatewayLoginUrl } from '@/lib/gateway'
+import { normalizeDocNumber } from '@/lib/crypto'
 import { normalizeMac } from '@/lib/mac'
-import { findTodaySession, nextBangkokMidnight, quotaToday } from '@/lib/quota'
-import { createSession } from '@/lib/session'
+import { registerDevice } from '@/lib/registration'
 
-const CONSENT_VERSION = 'v1'
 const DOC_TYPES = ['thai_id', 'passport', 'pink_card', 'other'] as const
 type DocType = (typeof DOC_TYPES)[number]
 
@@ -93,41 +90,21 @@ export async function register(input: RegisterInput): Promise<RegisterState> {
   }
 
   try {
-    const docNumberHmac = hashDocNumber(docNumber)
-
-    // RADIUS would reject this person anyway; say why instead of letting the EG
-    // show its generic error
-    const quota = await quotaToday({ mac, hmac: docNumberHmac })
-    if (quota.remainingSeconds <= 0) {
-      return { ok: false, exhaustedLimitSeconds: quota.limitSeconds }
-    }
-
-    // Same person on the same device again today: log in with the username
-    // they already have instead of piling up registrations
-    const session =
-      (await findTodaySession(mac, docNumberHmac)) ??
-      (await createSession({
-        authMethod: 'form',
-        fullName,
-        docType: docType!,
-        docNumberEnc: encryptDocNumber(docNumber),
-        docNumberHmac,
-        docLast4: last4(docNumber),
-        phone: phoneRaw || null,
-        mac,
-        ip,
-        consentVersion: CONSENT_VERSION,
-        sessionTimeoutSeconds: quota.limitSeconds,
-      }))
-
-    // The browser has to log in at the EG itself (see lib/gateway). Handing it
-    // the credentials is fine: they're random per registration, only accepted
-    // from this MAC, one device at a time, and expire with the session.
+    const res = await registerDevice({
+      authMethod: 'form',
+      fullName,
+      docType: docType!,
+      docNumber,
+      phone: phoneRaw || null,
+      mac,
+      ip,
+    })
+    if (!res.ok) return { ok: false, exhaustedLimitSeconds: res.exhaustedLimitSeconds }
     return {
       ok: true,
-      expiresAt: nextBangkokMidnight().toISOString(),
-      remainingSeconds: quota.remainingSeconds,
-      loginUrl: gatewayLoginUrl(session.username, session.password),
+      expiresAt: res.expiresAt.toISOString(),
+      remainingSeconds: res.remainingSeconds,
+      loginUrl: res.loginUrl,
     }
   } catch (err) {
     console.error('register failed', err)

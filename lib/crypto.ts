@@ -45,6 +45,14 @@ export function hashDocNumber(plain: string): Buffer {
   return createHmac('sha256', HMAC_KEY).update(plain).digest()
 }
 
+/**
+ * HMAC for anything other than document numbers (e.g. signing OAuth state).
+ * The purpose prefix keeps it from ever matching a hashDocNumber value.
+ */
+export function hmacFor(purpose: string, data: string): Buffer {
+  return createHmac('sha256', HMAC_KEY).update(`${purpose}\0${data}`).digest()
+}
+
 export function last4(plain: string): string {
   return plain.slice(-4)
 }
